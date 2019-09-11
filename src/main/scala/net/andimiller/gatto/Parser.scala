@@ -15,11 +15,18 @@ object Parser {
   }
 
   class Dsl[F[_]: Monad: Defer, S, T: Eq: Show](implicit cpf: CanParseFrom[S, T]) {
+    def takeOne: ParserT[F, S, T] = ParserT[F, S, T] { s: S =>
+      Defer[F].defer {
+        Monad[F].point(
+          Either.fromOption(cpf.take1(s), "Cannot consume empty input")
+        )
+      }
+    }
     def literal(target: T): ParserT[F, S, T] = ParserT[F, S, T] { s: S =>
       Defer[F].defer {
         Monad[F].point(
           Either.fromOption(cpf.take1(s), "Cannot consume empty input")
-            .flatMap { case (t, s) =>
+            .flatMap { case (s, t) =>
                 t match {
                   case _ if t === target => (s, t).asRight[String]
                   case _ => s"Expected: ${target.show}, Got: ${t.show}".asLeft[(S, T)]
@@ -29,6 +36,17 @@ object Parser {
       }
     }
     def literals(target: S): ParserT[F, S, S] = cpf.split(target).traverse(t => literal(t)).map(cpf.combine)
+
+    def takeIf[O](f: T => Either[String, O]): ParserT[F, S, O] = ParserT[F, S, O] { s: S =>
+      Defer[F].defer {
+        Monad[F].point(
+          Either.fromOption(cpf.take1(s), "Cannot consume empty input")
+            .flatMap { case (s, t) =>
+                f(t).map(o => (s, o))
+            }
+        )
+      }
+    }
   }
 
 }
