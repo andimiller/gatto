@@ -54,8 +54,8 @@ object Parser {
 
     implicit def parserTMonad[F[_]: Monad, S]: MonadError[ParserT[F, S, *], String] =
       new Monad[ParserT[F, S, *]] with MonadError[ParserT[F, S, *], String] {
-        val underlying           = Monad[StateT[EitherT[F, String, *], S, *]]
-        val underlyingMonadError = MonadError[StateT[EitherT[F, String, *], S, *], String]
+        private val underlying           = Monad[StateT[EitherT[F, String, *], S, *]]
+        private val underlyingMonadError = MonadError[StateT[EitherT[F, String, *], S, *], String]
 
         def pure[A](x: A): ParserT[F, S, A] = ParserT(underlying.pure(x))
 
@@ -73,9 +73,7 @@ object Parser {
       }
   }
 
-  abstract class Dsl[F[_]: Monad: Defer, S, T: Eq: Show](implicit cpf: CanParseFrom[S, T]) {
-
-    import ParserT._
+  abstract class Dsl[F[_]: Monad: Defer, S, T: Eq: Show](implicit cpf: CanParseFrom[S, T], pm: Monad[ParserT[F, S, *]]) {
 
     def takeOne: ParserT[F, S, T] = ParserT.liftF[F, S, T] { s: S =>
       Defer[F].defer {
