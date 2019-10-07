@@ -1,6 +1,7 @@
 package net.andimiller.gatto
 
 import cats._
+import cats.arrow.Profunctor
 import cats.data.{EitherT, NonEmptyList, StateT}
 import cats.implicits._
 
@@ -71,9 +72,22 @@ object Parser {
         def handleErrorWith[A](fa: ParserT[F, S, A])(f: String => ParserT[F, S, A]): ParserT[F, S, A] =
           ParserT(underlyingMonadError.handleErrorWith(fa.value)(f.map(_.value)))
       }
+
+    implicit def semigroupK[F[_]: Monad, T]: SemigroupK[ParserT[F, T, *]] = new SemigroupK[ParserT[F, T, *]] {
+      override def combineK[A](x: ParserT[F, T, A], y: ParserT[F, T, A]): ParserT[F, T, A] =
+        x orElse y
+    }
+
+    implicit def semigroup[F[_]: Monad, T, O]: Semigroup[ParserT[F, T, O]] = new Semigroup[ParserT[F, T, O]] {
+      override def combine(x: ParserT[F, T, O], y: ParserT[F, T, O]): ParserT[F, T, O] =
+        x orElse y
+    }
+
   }
 
   abstract class Dsl[F[_]: Monad: Defer, S, T: Eq: Show](implicit cpf: CanParseFrom[S, T], pm: Monad[ParserT[F, S, *]]) {
+
+    def pure[A](a: A): ParserT[F, S, A] = ParserT.pure[F, S, A](a)
 
     def takeOne: ParserT[F, S, T] = ParserT.liftF[F, S, T] { s: S =>
       Defer[F].defer {
