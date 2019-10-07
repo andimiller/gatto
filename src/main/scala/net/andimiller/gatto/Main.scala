@@ -6,11 +6,11 @@ import cats.effect._
 import net.andimiller.gatto.Parser.Dsl
 
 object Parsers extends Dsl[IO, String, Char] {
-  val literalParser: Parser.ParserT[IO, String, (Char, Char)] = for {
+  val literalParser: Parser.ParserT[IO, String, String, (Char, Char)] = for {
     a <- literal('a')
     b <- literal('b')
   } yield (a, b)
-  val literalsParser: Parser.ParserT[IO, String, (String, String)] = for {
+  val literalsParser: Parser.ParserT[IO, String, String, (String, String)] = for {
     as <- literals("aa")
     bs <- literals("bb")
   } yield (as, bs)

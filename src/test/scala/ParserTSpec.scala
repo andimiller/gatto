@@ -11,11 +11,11 @@ class ParserTSpec extends WordSpec with MustMatchers {
 
   "basic parsers which use literals" should {
     "work with normal data" in {
-      val literalParser: Parser.ParserT[Eval, String, (Char, Char)] = for {
+      val literalParser: Parser.ParserT[Eval, String, String, (Char, Char)] = for {
         a <- literal('a')
         b <- literal('b')
       } yield (a, b)
-      val literalsParser: Parser.ParserT[Eval, String, (String, String)] = for {
+      val literalsParser: Parser.ParserT[Eval, String, String, (String, String)] = for {
         as <- literals("aa")
         bs <- literals("bb")
       } yield (as, bs)
@@ -48,7 +48,7 @@ class ParserTSpec extends WordSpec with MustMatchers {
 
   "rep" should {
     "make parsers repeat" in {
-      val parser: ParserT[Eval, String, (List[Char], List[Char])] = for {
+      val parser: ParserT[Eval, String, String, (List[Char], List[Char])] = for {
         letters <- takeIf(_.isLetter, "").rep
         _       <- literal(' ')
         digits  <- takeIf(_.isDigit, "").rep
