@@ -14,20 +14,23 @@ object Parsers extends Dsl[IO, String, Char] {
     as <- literals("aa")
     bs <- literals("bb")
   } yield (as, bs)
+  val repeatedParser = for {
+    as <- literal('a').rep
+    b  <- literal('b')
+  } yield (as, b)
 }
 
 object Main extends IOApp {
 
-
   override def run(args: List[String]): IO[ExitCode] =
     for {
-      res1 <- Parsers.literalParser.parse("ab").value
-      res2 <- Parsers.literalParser.parse("abc").value
-      res3 <- Parsers.literalParser.parse("nah").value
+      res1 <- Parsers.repeatedParser.parse("ab").value
+      res2 <- Parsers.repeatedParser.parse("aaaaaabc").value
+      res3 <- Parsers.repeatedParser.parse("nah").value
       _ <- IO {
-        println(res1)
-        println(res2)
-        println(res3)
-      }
+            println(res1)
+            println(res2)
+            println(res3)
+          }
     } yield ExitCode.Success
 }

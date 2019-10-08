@@ -71,4 +71,45 @@ class ParserTSpec extends WordSpec with MustMatchers {
     }
   }
 
+  "ParserT.Par" should {
+    "let you parse in parallel" in {
+      val p = (literal('a'), takeOne).parTupled
+      p.parse("abbc").value.value must equal(Right(("bbc", ('a', 'a'))))
+    }
+    "not be bad" in {
+      val p = for {
+        a <- literal('a')
+        bs <- (literal('b'), literal('b')).parTupled
+        c <- literal('c')
+      } yield (a, bs, c)
+      p.parse("abc").value.value must equal(Right("", ('a', ('b', 'b'), 'c')))
+      val p2 = for {
+        a <- literal('a')
+        bs <- (literal('c'), literal('b')).parTupled
+        c <- literal('c')
+      } yield (a, bs, c)
+      p2.parse("abc").value.value must equal(Left("Expected: c, Got: b"))
+      val p3 = for {
+        a <- literal('a')
+        bs <- (literal('b'), literal('c')).parTupled
+        c <- literal('c')
+      } yield (a, bs, c)
+      p3.parse("abc").value.value must equal(Left("Expected: c, Got: b"))
+    }
+    "cope with different length parsing" in {
+      val p = for {
+        a <- literal('a')
+        bs <- (literal('b'), literals("bbb")).parTupled
+        c <- literal('c')
+      } yield (a, bs, c)
+      p.parse("abbbc").value.value must equal(Left("Parsers must consume the same tokens to be applied in parallel"))
+      val p2 = for {
+        a <- literal('a')
+        bs <- (literals("bbb"), literal('b')).parTupled
+        c <- literal('c')
+      } yield (a, bs, c)
+      p2.parse("abbbc").value.value must equal(Left("Parsers must consume the same tokens to be applied in parallel"))
+    }
+  }
+
 }
