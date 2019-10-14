@@ -113,16 +113,14 @@ object Parser {
 
   }
 
-  abstract class Dsl[F[_]: Monad: Defer, S, T: Eq: Show](implicit cpf: CanParseFrom[S, T], pm: Monad[ParserT[F, S, S, *]]) {
+  abstract class Dsl[F[_]: Monad, S, T: Eq: Show](implicit cpf: CanParseFrom[S, T], pm: Monad[ParserT[F, S, S, *]]) {
 
     def pure[A](a: A): ParserT[F, S, S, A] = ParserT.pure[F, S, A](a)
 
     def takeOne: ParserT[F, S, S, T] = ParserT.liftF[F, S, T] { s: S =>
-      Defer[F].defer {
-        Monad[F].point(
-          Either.fromOption(cpf.take1(s), "Cannot consume empty input")
-        )
-      }
+      Monad[F].point(
+        Either.fromOption(cpf.take1(s), "Cannot consume empty input")
+      )
     }
 
     def takeWhile(f: T => Boolean): ParserT[F, S, S, S] = takeOne.validate(f, "").rep.map(cpf.combine)
@@ -132,15 +130,12 @@ object Parser {
     def takeIf(f: T => Boolean, otherwise: String): ParserT[F, S, S, T] = takeOne.validate(f, otherwise)
 
     def get: ParserT[F, S, S, T] = ParserT.liftF[F, S, T] { s: S =>
-      Defer[F].defer {
-        Monad[F].point(
-          Either.fromOption(cpf.take1(s).map { case (_, t) => (s, t) }, "Cannot consume empty input")
-        )
-      }
+      Monad[F].point(
+        Either.fromOption(cpf.take1(s).map { case (_, t) => (s, t) }, "Cannot consume empty input")
+      )
     }
 
     def literal(target: T): ParserT[F, S, S, T] = ParserT.liftF[F, S, T] { s: S =>
-      Defer[F].defer {
         Monad[F].point(
           Either
             .fromOption(cpf.take1(s), "Cannot consume empty input")
@@ -153,7 +148,6 @@ object Parser {
             }
         )
       }
-    }
 
     def literals(target: S): ParserT[F, S, S, S] = cpf.split(target).traverse(t => literal(t)).map(cpf.combine)
 
