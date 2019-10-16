@@ -1,5 +1,7 @@
 package net.andimiller.gateau
 
+import net.andimiller.gateau.Parser.EmptyParser.Empty
+
 import scala.annotation.tailrec
 import scala.language.higherKinds
 
@@ -24,7 +26,7 @@ object Parser {
     def `<?>`[S: Symbol, A](p: P[S, A], a: (A, String)): P[S, A]
     def <|>[S: Symbol, A](p1: P[S, A], p2: P[S, A]): P[S, A]
     def <*>[S: Symbol, A, B](pf: P[S, B => A], pb: P[S, B]): P[S, A]
-    def ap[S: Symbol, A, B](pf: P[S, B => A])(pb: P[S, B]): P[S, A]
+    def ap[S: Symbol, A, B](pf: P[S, B => A])(pb: P[S, B]): P[S, A] = <*>(pf, pb)
     def `<$>`[S: Symbol, A, B](f: B => A, p: P[S, B]): P[S, A] =
       <*>(empty(f), (p))
     def map[S: Symbol, A, B](p: P[S, B])(f: B => A): P[S, A] =
@@ -76,7 +78,7 @@ object Parser {
     override def compare(x: String, y: String): Int = O.compare(x, y)
   }
   implicit def textForChar(implicit O: Ordering[Char]): Symbol[Char] = new Symbol[Char] {
-    override def showList(as: List[Char]): ShowS =  {s: String => as.mkString}
+    override def showList(as: List[Char]): ShowS =  {s: String => s+as.mkString}
     override def shows(a: Char): ShowS = {s: String => a.toString ++ s}
     override def show(a: Char): String = a.toString
     override def compare(x: Char, y: Char): Int = O.compare(x,y)
@@ -98,7 +100,6 @@ object Parser {
     val f: LC => LC => LC => LC => LC => LC = i => c => tp => ep => fs => i ::: c ::: tp ::: ep ::: fs
     (f `<$>` sym('I')) <*> cond <*> then_part <*> else_part <*> sym('F')
   }
-
 
   def then_part[P[_, _]: Parsing]: P[Char, List[Char]] = {
     val f: LC => LC => LC = t => ss => t ::: ss
@@ -122,7 +123,76 @@ object Parser {
 
 
   // more instances
+  // empty parser
+  object EmptyParser {
+    type Empty[A, B] = Boolean // just go with it
 
+    implicit val emptyParsing: Parsing[Empty] = new Parsing[Empty] {
+      def empty[S: Symbol, A](a: A): Empty[S, A] = true
+      def symbol[S: Symbol](s: S): Empty[S, S] = false
+      def `<?>`[S: Symbol, A](p: Empty[S, A], a: (A, String)): Empty[S, A] = false
+      def <|>[S: Symbol, A](p1: Empty[S, A], p2: Empty[S, A]): Empty[S, A] = p1 || p2
+      def <*>[S: Symbol, A, B](pf: Empty[S, B => A], pb: Empty[S, B]): Empty[S, A] = pf && pb
+    }
+
+    def invokeEmpty[A, B](e: Empty[A, B]): Boolean = e
+
+    def combine[S: Symbol, A](e: Empty[S, A])(s1: List[S])(s2: List[S]): List[S] =
+      s1.union(if (e) s2 else List.empty)
+  }
+
+
+
+  object FirstParser {
+    type First[S, A] = List[S]
+
+    def fempty[S, A](a: A): First[S, A] = List.empty
+    def fsymbol[S: Symbol](s: S): First[S, Nothing] = List(s)
+
+    def ferr[S: Symbol, A](ss: List[S], a: (A, String)) = ss
+    def falt[S: Symbol](ss1: List[S], ss2: List[S]) = ss1 union ss2
+
+    import EmptyParser._
+    type EmpFir[S, A] = (Empty[S, A], First[S, A])
+
+    implicit val empFirParsing: Parsing[EmpFir] = new Parsing[EmpFir] {
+      def empty[S: Symbol, A](a: A): EmpFir[S, A] = (emptyParsing.empty[S, A](a), fempty[S, A](a))
+      def symbol[S: Symbol](s: S): EmpFir[S, S] = (emptyParsing.symbol[S](s), fsymbol(s))
+      def `<?>`[S: Symbol, A](p: EmpFir[S, A], a: (A, String)): EmpFir[S, A] =
+        (emptyParsing.`<?>`(p._1, a), ferr(p._2, a))
+      def <|>[S: Symbol, A](p1: EmpFir[S, A], p2: EmpFir[S, A]): EmpFir[S, A] =
+        (emptyParsing.<|>(p1._1, p2._1), falt(p1._2, p2._2))
+      def <*>[S: Symbol, A, B](pf: EmpFir[S, B => A], pb: EmpFir[S, B]): EmpFir[S, A] =
+        (emptyParsing.<*>(pf._1, pb._1), combine(pf._1)(pf._2)(pb._2))
+    }
+
+    def invokeFirst[S: Symbol, A](e: EmpFir[S, A]): First[S, A] = e._2
+  }
+
+  object DetParser {
+    import EmptyParser._
+    import FirstParser._
+    type Input[S] = List[S]
+    type Follow[S] = List[S]
+    type DetParFun[S, A] = Input[S] => Follow[S] => (A, Input[S])
+
+    type DetPar[S, A] = (EmpFir[S, A], DetParFun[S, A])
+
+    implicit val detParParsing = new Parsing[DetPar] {
+      def empty[S: Symbol, A](a: A): ((Empty[S, A], First[S, A]), DetParFun[S, A]) =
+        (empFirParsing.empty[S, A](a), input => _ => (a, input) )
+      def symbol[S: Symbol](s: S): ((Empty[S, S], First[S, S]), DetParFun[S, S]) =
+        (empFirParsing.symbol(s), input => _ => (s, input))
+      def `<?>`[S: Symbol, A](p: ((Empty[S, A], First[S, A]), DetParFun[S, A]), a: (A, String)): ((Empty[S, A], First[S, A]), DetParFun[S, A]) =
+        <|>(p, (empFirParsing.empty[S, A](a._1), emptyParsing.empty[S, A](a._1)))
+      def <|>[S: Symbol, A](p1: ((Empty[S, A], First[S, A]), DetParFun[S, A]), p2: ((Empty[S, A], First[S, A]), DetParFun[S, A])): ((Empty[S, A], First[S, A]), DetParFun[S, A]) =
+        (p1, p2) match {
+          case ((ef1 @ (e1, f1), p1), (sf2 @ (e2, f2), p2)) =>
+
+        }
+      def <*>[S: Symbol, A, B](pf: ((Empty[S, B => A], First[S, B => A]), DetParFun[S, B => A]), pb: ((Empty[S, B], First[S, B]), DetParFun[S, B])): ((Empty[S, A], First[S, A]), DetParFun[S, A]) = ???
+    }
+  }
 
 
   def main(args: Array[String]): Unit = {
