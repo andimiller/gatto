@@ -123,9 +123,13 @@ object Parser {
       )
     }
 
-    def takeWhile(f: T => Boolean): ParserT[F, S, S, S] = takeOne.validate(f, "").rep.map(cpf.combine)
+    def takeWhile(f: T => Boolean): ParserT[F, S, S, S] = ParserT.liftF[F, S, S] { s: S =>
+      Monad[F].point(
+        cpf.takeWhile(s, f).asRight[String]
+      )
+    }
 
-    def takeWhile1(f: T => Boolean): ParserT[F, S, S, S] = takeOne.validate(f, "").rep1.map(ss => cpf.combine(ss.toList))
+    def takeWhile1(f: T => Boolean): ParserT[F, S, S, S] = takeWhile(f).validate(cpf.nonEmpty, "Must consume at least one token")
 
     def takeIf(f: T => Boolean, otherwise: String): ParserT[F, S, S, T] = takeOne.validate(f, otherwise)
 
@@ -149,7 +153,13 @@ object Parser {
         )
       }
 
-    def literals(target: S): ParserT[F, S, S, S] = cpf.split(target).traverse(t => literal(t)).map(cpf.combine)
+    def literals(target: S): ParserT[F, S, S, S] = ParserT.liftF[F, S, S] { s: S =>
+      Monad[F].point(
+        Either.fromOption(
+          cpf.takeLiteral(s, target), s"expected $s"
+        )
+      )
+    }
 
   }
 

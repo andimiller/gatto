@@ -178,6 +178,7 @@ object Parser {
 
     type DetPar[S, A] = (EmpFir[S, A], DetParFun[S, A])
 
+    /*
     implicit val detParParsing = new Parsing[DetPar] {
       def empty[S: Symbol, A](a: A): ((Empty[S, A], First[S, A]), DetParFun[S, A]) =
         (empFirParsing.empty[S, A](a), input => _ => (a, input) )
@@ -192,6 +193,8 @@ object Parser {
         }
       def <*>[S: Symbol, A, B](pf: ((Empty[S, B => A], First[S, B => A]), DetParFun[S, B => A]), pb: ((Empty[S, B], First[S, B]), DetParFun[S, B])): ((Empty[S, A], First[S, A]), DetParFun[S, A]) = ???
     }
+
+     */
   }
 
 
